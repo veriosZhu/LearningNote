@@ -3,6 +3,10 @@
 -----------------------
 
 * [概述](#概述)
+* [数据库性能优化](#数据库性能优化)
+* [布局优化](#布局优化)
+* [Java(Android)代码优化](#Java(Android)代码优化)
+* [移动网络优化](#移动网络优化)
 
 ## 概述
 
@@ -153,3 +157,157 @@ networkErrorView =  findViewById(R.id.network_error_layout); // 获取展开后�
 2. 使用RelativeLayout代替LinearLayout
 
 ### 减少不必要的infalte
+
+1. 对于`inflate`的布局可以直接缓存，避免下次再次`inflate`
+2. `ListView`缓存
+
+### 其他点
+
+#### 使用`SurfaceView`或者`TextureView`代替普通`View`
+
+`SerfaceView`和`TextureView`都是将绘图移动到另一个单独线程上提高性能。`SurfaceView`在常规视图系统之外，所以无法像常规试图一样移动、缩放或旋转一个`SurfaceView`。`TextureView`是Android4.0引入的，除了与`SurfaceView`一样在单独线程绘制外，还可以像常规视图一样被改变。
+
+#### 使用RenderJavascript
+
+RenderScript是Adnroid3.0引进的用来在Android上写高性能代码的一种语言。（没搞明白）
+
+#### 使用OpenGL绘图
+
+一般使用在游戏绘图中。
+
+#### 尽量为所有分辨率创建资源
+
+减少不必要的硬件缩放。可以借助[Android asset studio](https://romannurik.github.io/AndroidAssetStudio/)
+
+### 布局调优工具
+
+**hierarchy viewer**、**lint**
+
+## Java(Android)代码优化
+
+### 降低执行时间
+
+#### 缓存
+
+1. 线程池
+2. Android图片缓存，Android图片sd缓存，数据预存缓存
+3. 消息缓存
+- `handler.sendMessage(handler.obtainMessage(0, object));`
+4. `ListView`缓存
+5. 网络缓存
+6. 文件IO缓存
+- 使用`BufferedInputStream`代替`InutStream`；`BufferedReader`代替`Reader`；`BufferedReader`代替`BufferedInputStream`
+7. layout缓存
+
+#### 数据结构优化
+
+1. `StringBuilder`代替`String`，如果对字符串长度有大致了解可制定初始大小`new StringBuilder(128)`
+2. 使用`SoftReference`、`WeakReference`更有利于系统垃圾回收
+3. `LocalBroadcastManager`代替普通`BroadcastReceiver`，效率和安全性都更高
+
+**数据结构选择：**
+
+ArrayList和LinkedList的选择，ArrayList根据index取值更快，LinkedList更占内存、随机插入删除更快速、扩容效率更高。一般推荐ArrayList。
+
+ArrayList、HashMap、LinkedHashMap、HashSet的选择，hash系列数据结构查询速度更优，ArrayList存储有序元素，HashMap为键值对数据结构，LinkedHashMap可以记住加入次序的hashMap，HashSet不允许重复元素。
+
+HashMap、WeakHashMap选择，WeakHashMap中元素可在适当时候被系统垃圾回收器自动回收，所以适合在内存紧张型中使用。
+
+Collections.synchronizedMap和ConcurrentHashMap的选择，ConcurrentHashMap为细分锁，锁粒度更小，并发性能更优。Collections.synchronizedMap为对象锁，自己添加函数进行锁控制更方便。
+ 
+Android也提供了一些性能更优的数据类型，如SparseArray、SparseBooleanArray、SparseIntArray、Pair。
+Sparse系列的数据结构是为key为int情况的特殊处理，采用二分查找及简单的数组存储，加上不需要泛型转换的开销，相对Map来说性能更优。
+
+#### 算法优化
+
+尽量不用O(n*n)时间复杂度以上的算法，必要时候可用空间换时间。
+
+#### JNI
+
+（还不懂。。。）
+
+#### 逻辑优化
+
+理清程序逻辑，减少不必要的操作。
+
+#### 需求优化
+
+### 异步、利用多线程提高TPS
+
+将可能造成主线程超时操作放入另外的工作线程中。在工作线程中可以通过handler和主线程交互。
+
+### 提前或延时操作，错开时间段提高TPS
+
+#### 延迟操作
+
+不在Activity、Service、BroadcastReceiver的生命周期等对响应时间敏感函数中执行耗时操作，可适当delay。
+Java中延迟操作可使用ScheduledExecutorService，不推荐使用Timer.schedule;
+
+``` java
+// 延迟执行代码
+ScheduledExecutorService scheduledThreadPool = Executors.newScheduledThreadPool(5);
+scheduledThreadPool.schedule(new Runnable() {
+
+	@Override
+	public void run() {
+		System.out.println("delay 3 seconds");
+	}
+}, 3, TimeUnit.SECONDS);
+
+// 定期执行代码
+scheduledThreadPool.scheduleAtFixedRate(new Runnable() {
+
+	@Override
+	public void run() {
+		System.out.println("delay 1 seconds, and excute every 3 seconds");
+	}
+}, 1, 3, TimeUnit.SECONDS);
+```
+
+除此之外还可以使用handler.postDelayed，handler.postAtTime，handler.sendMessageDelayed，View.postDelayed，AlarmManager定时等。
+
+#### 提前操作
+
+对于第一次调用耗时操作，可以统一放到初始化中。
+
+### 网络优化
+
+以下是网络优化中一些客户端和服务器端需要尽量遵守的准则：
+
+1. 图片必须缓存，最好根据机型做图片做图片适配
+2. 所有http请求必须添加httptimeout
+3. 开启gzip压缩
+4. api接口数据以json格式返回，而不是xml或html
+5. 根据http头信息中的Cache-Control及expires域确定是否缓存请求结果。
+6. 确定网络请求的connection是否keep-alive
+7. 减少网络请求次数，服务器端适当做请求合并。
+8. 减少重定向次数
+9. api接口服务器端响应时间不超过100ms
+
+## 移动网络优化
+
+### 连接服务器优化策略
+
+1. 不用域名，用IP直连
+2. 服务器合理部署（至少含三大运营商、南中北三地部署）
+
+### 获取数据优化策略
+
+1. 连接复用
+2. 请求合并
+3. 减少请求数据大小（例如Gzip压缩）
+4. CDN缓存静态资源
+5. 减小返回数据大小
+- 压缩：使用Gzip
+- 精简数据格式：使用JSON代替xml
+- 对不同设备不同网络返回不同的内容
+- 增量更新
+- 大文件下载
+6. 数据缓存
+
+### 其他方法
+
+1. 预取
+2. 分优先级、延迟部分请求
+3. 多连接
+4. 监控
