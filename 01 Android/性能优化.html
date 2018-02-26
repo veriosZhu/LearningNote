@@ -1,0 +1,311 @@
+<html lang="en"><head>
+    <meta charset="UTF-8">
+    <title></title>
+<style id="system" type="text/css">h1,h2,h3,h4,h5,h6,p,blockquote {    margin: 0;    padding: 0;}body {    font-family: "Helvetica Neue", Helvetica, "Hiragino Sans GB", Arial, sans-serif;    font-size: 13px;    line-height: 18px;    color: #737373;    margin: 10px 13px 10px 13px;}a {    color: #0069d6;}a:hover {    color: #0050a3;    text-decoration: none;}a img {    border: none;}p {    margin-bottom: 9px;}h1,h2,h3,h4,h5,h6 {    color: #404040;    line-height: 36px;}h1 {    margin-bottom: 18px;    font-size: 30px;}h2 {    font-size: 24px;}h3 {    font-size: 18px;}h4 {    font-size: 16px;}h5 {    font-size: 14px;}h6 {    font-size: 13px;}hr {    margin: 0 0 19px;    border: 0;    border-bottom: 1px solid #ccc;}blockquote {    padding: 13px 13px 21px 15px;    margin-bottom: 18px;    font-family:georgia,serif;    font-style: italic;}blockquote:before {    content:"C";    font-size:40px;    margin-left:-10px;    font-family:georgia,serif;    color:#eee;}blockquote p {    font-size: 14px;    font-weight: 300;    line-height: 18px;    margin-bottom: 0;    font-style: italic;}code, pre {    font-family: Monaco, Andale Mono, Courier New, monospace;}code {    background-color: #fee9cc;    color: rgba(0, 0, 0, 0.75);    padding: 1px 3px;    font-size: 12px;    -webkit-border-radius: 3px;    -moz-border-radius: 3px;    border-radius: 3px;}pre {    display: block;    padding: 14px;    margin: 0 0 18px;    line-height: 16px;    font-size: 11px;    border: 1px solid #d9d9d9;    white-space: pre-wrap;    word-wrap: break-word;}pre code {    background-color: #fff;    color:#737373;    font-size: 11px;    padding: 0;}@media screen and (min-width: 768px) {    body {        width: 748px;        margin:10px auto;    }}</style><style id="custom" type="text/css"></style></head>
+<body marginheight="0"><h1>Android 性能优化</h1>
+<hr>
+<ul>
+<li><a href="#概述">概述</a></li>
+<li><a href="#数据库性能优化">数据库性能优化</a></li>
+<li><a href="#布局优化">布局优化</a></li>
+<li><a href="#代码优化">Java(Android)代码优化</a></li>
+<li><a href="#移动网络优化">移动网络优化</a></li>
+</ul>
+<h2>概述</h2>
+<h3>两个概念</h3>
+<ol>
+<li>相应时间：<ul>
+<li>处理时间+网络传输时间+展开时间</li>
+</ul>
+</li>
+<li>TPS：<ul>
+<li>每秒处理的事务数（系统吞吐量）</li>
+</ul>
+</li>
+</ol>
+<h2>性能调优方式</h2>
+<ol>
+<li>降低执行时间</li>
+<li>利用多线程或者分布式提高TPS</li>
+<li>缓存（包括对象缓存、IO缓存、网络缓存）</li>
+<li>数据结构优化和算法优化</li>
+<li>性能更优的底层接口调用，如JNI实现</li>
+<li>逻辑优化</li>
+<li>需求优化<ol>
+<li>同步改异步</li>
+<li>提前或者延时操作</li>
+</ol>
+</li>
+</ol>
+<h2>数据库性能优化</h2>
+<h3>使用索引</h3>
+<p>合适的索引可以大大加快数据库查询的效率，经常是一到两个数量级的提升。同时，索引会占用物理空间，并且增删改时需要维护索引。
+
+
+</p>
+<h2>布局优化</h2>
+<h3>使用抽象布局标签</h3>
+<h4>1.<code>&lt;include&gt;</code>标签</h4>
+<p><code>include</code>标签用于将布局中公共部分提取出来以供其他layout使用
+
+</p>
+<pre><code class="lang-java">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" &gt;
+    &lt;ListView
+        android:id="@+id/simple_list_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginBottom="@dimen/dp_80" /&gt;
+    &lt;include layout="@layout/foot.xml" /&gt;
+&lt;/RelativeLayout&gt;</code></pre>
+<h4>2.<code>&lt;viewstub&gt;</code>标签</h4>
+<p>与<code>include</code>标签一样，引入一个外部布局。不同的是，<code>viewstub</code>引入的布局默认不会扩张，即不会占用显示也不会占用位置。
+
+</p>
+<p><code>viewstub</code>常用语引入那些默认不会显示，只在特殊情况下显示的布局，如进度布局、网络失败布局、信息出错的提示布局等。
+
+</p>
+<pre><code class="lang-java">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" &gt;
+
+    ……
+    &lt;ViewStub
+        android:id="@+id/network_error_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout="@layout/network_error" /&gt;
+
+&lt;/RelativeLayout&gt;</code></pre>
+<p>network_error.xml为只有在网络错误时才需要显示的布局，默认不会被解析，示例代码如下：
+
+</p>
+<pre><code class="lang-java">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" &gt;
+
+    &lt;Button
+        android:id="@+id/network_setting"
+        android:layout_width="@dimen/dp_160"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:text="@string/network_setting" /&gt;
+
+    &lt;Button
+        android:id="@+id/network_refresh"
+        android:layout_width="@dimen/dp_160"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/network_setting"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="@dimen/dp_10"
+        android:text="@string/network_refresh" /&gt;
+
+&lt;/RelativeLayout&gt;</code></pre>
+<p>在代码中，通过<code>viewstub.inflate()</code>展开布局。
+
+</p>
+<pre><code class="lang-java">// 写法1
+ViewStub stub = (ViewStub)findViewById(R.id.network_error_layout);
+networkErrorView = stub.inflate();
+// 写法2
+View viewStub = findViewById(R.id.network_error_layout);
+viewStub.setVisibility(View.VISIBLE);   // ViewStub被展开后的布局所替换
+networkErrorView =  findViewById(R.id.network_error_layout); // 获取展开后的布局</code></pre>
+<h4>3.<code>&lt;merge&gt;</code>标签</h4>
+<p>使用<code>include</code>标签导致布局嵌套过多时，为了删除不必要的layout节点导致解析速度变慢，可用<code>merge</code>标签。
+
+</p>
+<p><code>merge</code>标签常用语两种典型情况：
+
+</p>
+<ol>
+<li>布局顶节点是<code>Framelayout</code>且不需要background或padding等属性。</li>
+<li>某布局被其他布局include时，使用<code>merge</code>当作顶节点，这样被引入的顶节点会被自动忽略，而将其子节点全部合并到主布局中。</li>
+</ol>
+<p>例如
+</p>
+<pre><code class="lang-java">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;merge xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" &gt;
+
+    &lt;Button
+        android:id="@+id/button"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/dp_40"
+        android:layout_above="@+id/text"/&gt;
+
+    &lt;TextView
+        android:id="@+id/text"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/dp_40"
+        android:layout_alignParentBottom="true"
+        android:text="@string/app_name" /&gt;
+
+&lt;/merge&gt;</code></pre>
+<h3>去除不必要的嵌套和View节点</h3>
+<ol>
+<li>首次不需要使用的节点设置为GONE或使用viewstub</li>
+<li>使用RelativeLayout代替LinearLayout</li>
+</ol>
+<h3>减少不必要的infalte</h3>
+<ol>
+<li>对于<code>inflate</code>的布局可以直接缓存，避免下次再次<code>inflate</code></li>
+<li><code>ListView</code>缓存</li>
+</ol>
+<h3>其他点</h3>
+<h4>使用<code>SurfaceView</code>或者<code>TextureView</code>代替普通<code>View</code></h4>
+<p><code>SerfaceView</code>和<code>TextureView</code>都是将绘图移动到另一个单独线程上提高性能。<code>SurfaceView</code>在常规视图系统之外，所以无法像常规试图一样移动、缩放或旋转一个<code>SurfaceView</code>。<code>TextureView</code>是Android4.0引入的，除了与<code>SurfaceView</code>一样在单独线程绘制外，还可以像常规视图一样被改变。
+
+</p>
+<h4>使用RenderJavascript</h4>
+<p>RenderScript是Adnroid3.0引进的用来在Android上写高性能代码的一种语言。（没搞明白）
+
+</p>
+<h4>使用OpenGL绘图</h4>
+<p>一般使用在游戏绘图中。
+
+</p>
+<h4>尽量为所有分辨率创建资源</h4>
+<p>减少不必要的硬件缩放。可以借助<a href="https://romannurik.github.io/AndroidAssetStudio/">Android asset studio</a>
+
+</p>
+<h3>布局调优工具</h3>
+<p><strong>hierarchy viewer</strong>、<strong>lint</strong>
+
+</p>
+<h2>代码优化</h2>
+<h3>降低执行时间</h3>
+<h4>缓存</h4>
+<ol>
+<li>线程池</li>
+<li>Android图片缓存，Android图片sd缓存，数据预存缓存</li>
+<li>消息缓存</li>
+<li><code>handler.sendMessage(handler.obtainMessage(0, object));</code></li>
+<li><code>ListView</code>缓存</li>
+<li>网络缓存</li>
+<li>文件IO缓存</li>
+<li>使用<code>BufferedInputStream</code>代替<code>InutStream</code>；<code>BufferedReader</code>代替<code>Reader</code>；<code>BufferedReader</code>代替<code>BufferedInputStream</code></li>
+<li>layout缓存</li>
+</ol>
+<h4>数据结构优化</h4>
+<ol>
+<li><code>StringBuilder</code>代替<code>String</code>，如果对字符串长度有大致了解可制定初始大小<code>new StringBuilder(128)</code></li>
+<li>使用<code>SoftReference</code>、<code>WeakReference</code>更有利于系统垃圾回收</li>
+<li><code>LocalBroadcastManager</code>代替普通<code>BroadcastReceiver</code>，效率和安全性都更高</li>
+</ol>
+<p><strong>数据结构选择：</strong>
+
+</p>
+<p>ArrayList和LinkedList的选择，ArrayList根据index取值更快，LinkedList更占内存、随机插入删除更快速、扩容效率更高。一般推荐ArrayList。
+
+</p>
+<p>ArrayList、HashMap、LinkedHashMap、HashSet的选择，hash系列数据结构查询速度更优，ArrayList存储有序元素，HashMap为键值对数据结构，LinkedHashMap可以记住加入次序的hashMap，HashSet不允许重复元素。
+
+</p>
+<p>HashMap、WeakHashMap选择，WeakHashMap中元素可在适当时候被系统垃圾回收器自动回收，所以适合在内存紧张型中使用。
+
+</p>
+<p>Collections.synchronizedMap和ConcurrentHashMap的选择，ConcurrentHashMap为细分锁，锁粒度更小，并发性能更优。Collections.synchronizedMap为对象锁，自己添加函数进行锁控制更方便。
+
+</p>
+<p>Android也提供了一些性能更优的数据类型，如SparseArray、SparseBooleanArray、SparseIntArray、Pair。
+Sparse系列的数据结构是为key为int情况的特殊处理，采用二分查找及简单的数组存储，加上不需要泛型转换的开销，相对Map来说性能更优。
+
+</p>
+<h4>算法优化</h4>
+<p>尽量不用O(n*n)时间复杂度以上的算法，必要时候可用空间换时间。
+
+</p>
+<h4>JNI</h4>
+<p>（还不懂。。。）
+
+</p>
+<h4>逻辑优化</h4>
+<p>理清程序逻辑，减少不必要的操作。
+
+</p>
+<h4>需求优化</h4>
+<h3>异步、利用多线程提高TPS</h3>
+<p>将可能造成主线程超时操作放入另外的工作线程中。在工作线程中可以通过handler和主线程交互。
+
+</p>
+<h3>提前或延时操作，错开时间段提高TPS</h3>
+<h4>延迟操作</h4>
+<p>不在Activity、Service、BroadcastReceiver的生命周期等对响应时间敏感函数中执行耗时操作，可适当delay。
+Java中延迟操作可使用ScheduledExecutorService，不推荐使用Timer.schedule;
+
+</p>
+<pre><code class="lang-java">// 延迟执行代码
+ScheduledExecutorService scheduledThreadPool = Executors.newScheduledThreadPool(5);
+scheduledThreadPool.schedule(new Runnable() {
+
+    @Override
+    public void run() {
+        System.out.println("delay 3 seconds");
+    }
+}, 3, TimeUnit.SECONDS);
+
+// 定期执行代码
+scheduledThreadPool.scheduleAtFixedRate(new Runnable() {
+
+    @Override
+    public void run() {
+        System.out.println("delay 1 seconds, and excute every 3 seconds");
+    }
+}, 1, 3, TimeUnit.SECONDS);</code></pre>
+<p>除此之外还可以使用handler.postDelayed，handler.postAtTime，handler.sendMessageDelayed，View.postDelayed，AlarmManager定时等。
+
+</p>
+<h4>提前操作</h4>
+<p>对于第一次调用耗时操作，可以统一放到初始化中。
+
+</p>
+<h3>网络优化</h3>
+<p>以下是网络优化中一些客户端和服务器端需要尽量遵守的准则：
+
+</p>
+<ol>
+<li>图片必须缓存，最好根据机型做图片做图片适配</li>
+<li>所有http请求必须添加httptimeout</li>
+<li>开启gzip压缩</li>
+<li>api接口数据以json格式返回，而不是xml或html</li>
+<li>根据http头信息中的Cache-Control及expires域确定是否缓存请求结果。</li>
+<li>确定网络请求的connection是否keep-alive</li>
+<li>减少网络请求次数，服务器端适当做请求合并。</li>
+<li>减少重定向次数</li>
+<li>api接口服务器端响应时间不超过100ms</li>
+</ol>
+<h2>移动网络优化</h2>
+<h3>连接服务器优化策略</h3>
+<ol>
+<li>不用域名，用IP直连</li>
+<li>服务器合理部署（至少含三大运营商、南中北三地部署）</li>
+</ol>
+<h3>获取数据优化策略</h3>
+<ol>
+<li>连接复用</li>
+<li>请求合并</li>
+<li>减少请求数据大小（例如Gzip压缩）</li>
+<li>CDN缓存静态资源</li>
+<li>减小返回数据大小</li>
+<li>压缩：使用Gzip</li>
+<li>精简数据格式：使用JSON代替xml</li>
+<li>对不同设备不同网络返回不同的内容</li>
+<li>增量更新</li>
+<li>大文件下载</li>
+<li>数据缓存</li>
+</ol>
+<h3>其他方法</h3>
+<ol>
+<li>预取</li>
+<li>分优先级、延迟部分请求</li>
+<li>多连接</li>
+<li>监控</li>
+</ol>
+<p>Edit By <a href="http://mahua.jser.me">MaHua</a></p>
+</body></html>
