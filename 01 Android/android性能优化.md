@@ -5,6 +5,8 @@
 * [概述](#概述)
 * [数据库性能优化](#数据库性能优化)
 * [布局优化](#布局优化)
+* [内存泄漏优化](#内存泄漏优化)
+* [相应速度优化](#相应速度优化)
 * [Java(Android)代码优化](#Java(Android)代码优化)
 * [移动网络优化](#移动网络优化)
 
@@ -161,6 +163,10 @@ networkErrorView =  findViewById(R.id.network_error_layout); // 获取展开后�
 1. 对于`inflate`的布局可以直接缓存，避免下次再次`inflate`
 2. `ListView`缓存
 
+### 绘制优化
+`onDraw`中不要创建新的局部对象，这是因为`onDraw`方法可能被频繁调用，这样会在一瞬间产生大量临时变量。
+`onDraw`方法不要做耗时操作，也不要执行过多的循环。
+
 ### 其他点
 
 #### 使用`SurfaceView`或者`TextureView`代替普通`View`
@@ -182,6 +188,17 @@ RenderScript是Adnroid3.0引进的用来在Android上写高性能代码的一种
 ### 布局调优工具
 
 **hierarchy viewer**、**lint**
+
+## 内存泄漏优化
+### 静态变量导致内存泄漏
+### 单例模式导致内存泄漏
+tips：注册的接口都必须有接注册方法
+### 属性动画导致内存泄漏
+在`onDestory`中必须调用`animator.cancel()`
+
+## 相应速度优化
+activity如果5秒钟之内无法响应屏幕触摸事件或者键盘输入事件就会出现ANR；
+
 
 ## Java(Android)代码优化
 
