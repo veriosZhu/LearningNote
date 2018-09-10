@@ -54,7 +54,25 @@ ActivityStackSupervisor：由于多屏功能的出现，就需要ActivityStackSu
 ![start_service2](src/launch-service-start2.png)
 
 ### bindService
-![start_service2]
+![bind_service1](src/launch-service-bind1.png)
 
+1. 通过ContextImpl发起bindService操作，由于涉及到跨进程调用，因此把ServiceConnection对象封装成IBinder类型的InnerConnection对象。
+2. 跨进程调用AMS#bindService，然后和startService类似，交给ActiveService实际操作。
+3. 在ActiveService#bindServiceLocked中会调用ApplicationThread#scheduleCareteService和ApplicationThread#scheduleBindService。前一个方法与startService类似
+4. ActivityThread切换到主线程，然后再跨进程调用AMS#publishService
+5. AMS仍旧交给ActiveService执行publishServiceLocked()，然后会调用第1步中构造的InnerConnection#connect
+6. InnerConnection是能拿到最初的ServiceConnection对象的，因此只需要切换到主线程并调用ServiceConnection#onServiceConnected即可。
 
-https://hawksjamesf.github.io/blog/2018-03-15/framework-service-ams-component
+![bind_service2](src/launch-service-bind2.png)
+
+## BroadcastReceiver
+广播的工作流程主要分为两方面，一是广播的注册，二是广播的发送与接收。
+注册又分为动态注册和静态注册，静态注册写在manifest中，由PMS完成注册，而动态注册是在代码中完成，这里只分析动态注册。
+### 注册广播(动态注册)
+1. 通过ContextImpl发起registerReceiver操作，然后与service绑定过程类似，将receiver封装成一个用于跨进程通信的IBinder(IIntentReceiver)，然后调用AMS#registerReceiver
+2. AMS中的核心是将IntentReceiver作为key，ReceiverList（DeathRecipient子类）作为value保存到一个map中。最后把该ReceiverList和IntentFilter封装成BroadcastFilter并加入mReceiverResolver中。
+### 发送广播
+1. 由ContextImpl发起sendBroadcast操作，跨进程调用AMS#broadcastIntent
+2. 将信息封装成BroadcastRecord然后加入BroadQueue中，并调用BroadcastQueue#scheduleBroadcastsLocked
+3. BroadCastQueue中先切换到主线程（AMS的主线程），然后取出所有所有普通广播的Record
+3. 
