@@ -74,5 +74,8 @@ ActivityStackSupervisor：由于多屏功能的出现，就需要ActivityStackSu
 ### 发送广播
 1. 由ContextImpl发起sendBroadcast操作，跨进程调用AMS#broadcastIntent
 2. 将信息封装成BroadcastRecord然后加入BroadQueue中，并调用BroadcastQueue#scheduleBroadcastsLocked
-3. BroadCastQueue中先切换到主线程（AMS的主线程），然后取出所有所有普通广播的Record
-3. 
+3. BroadCastQueue中先切换到主线程（AMS的主线程），然后取出所有所有普通广播的BroadcastRecord
+4. 针对每一个BroadcastRecord都发送给各自所有都BroadcastFilter，然后会调用ApplicationThread#scheduleRegisteredReceiver
+5. 这里会调用IIntentReceiver#performReceive然后会切换到主线程，调用BroadcastReceiver#onReceive(mContext, intent)，至此完成
+![broadcast1](src/launch-broadcastreceiver-1)
+![broadcast2](src/launch-broadcastreceiver-2)
