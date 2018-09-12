@@ -77,5 +77,15 @@ ActivityStackSupervisor：由于多屏功能的出现，就需要ActivityStackSu
 3. BroadCastQueue中先切换到主线程（AMS的主线程），然后取出所有所有普通广播的BroadcastRecord
 4. 针对每一个BroadcastRecord都发送给各自所有都BroadcastFilter，然后会调用ApplicationThread#scheduleRegisteredReceiver
 5. 这里会调用IIntentReceiver#performReceive然后会切换到主线程，调用BroadcastReceiver#onReceive(mContext, intent)，至此完成
-![broadcast1](src/launch-broadcastreceiver-1)
-![broadcast2](src/launch-broadcastreceiver-2)
+![broadcast1](src/launch-broadcastreceiver-1.png)
+![broadcast2](src/launch-broadcastreceiver-2.png)
+
+## ContentProvider
+ContentProvider提供了一个外部访问本应用数据的接口。实现时需要继承ContentProvider并重写QURD方法。
+
+当需要访问外部程序的数据时，通过getContentResolver().query()/insert()等操作其他程序的ContentProvider。
+![contentprovider](src/launch-contentprovider.png)
+1. 通过ContextImpl#getContentResolver发起操作，这时获取的实际对象为ApplicationContentResolver
+2. 调用ApplicationContentResolver的query()等方法时，会调用ActivityThread#acquireProvider，它会拿到IContentProvider类型的对象，很明显这个对象也是用于跨进程调用的。因此最终query操作会交给这个IContentProvider做。
+3. 在ActivityThread#acquireProvider中，首先会在本地查找是否已经注册，如果没有则调用AMS#getContentProvider，然后再安装到本地。(这里查找其实就是在mProviderMap中根据authority和userId找，安装的本质也就是放入该map中)
+4. 
