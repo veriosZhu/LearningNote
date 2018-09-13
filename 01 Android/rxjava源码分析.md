@@ -118,8 +118,152 @@ public final class FlowableCreate<T> extends Flowable<T> {
         }
     }
 
+
+static final class MissingEmitter<T> extends BaseEmitter<T> {
+
+        MissingEmitter(Subscriber<? super T> actual) {
+            super(actual); // actual指的是下游的subcriber
+        }
+
+        @Override
+        public void onNext(T t) {
+            if (isCancelled()) {
+                return;
+            }
+            if (t != null) {
+                actual.onNext(t);   // actual指的是下游的subcriber
+            } else {
+               ...
+                return;
+            }
+            ...
+        }
+    // onComplete 和 onError类似
+    }
 ```
 `subscribeActual`方法即是真正实现订阅操作的地方，先回忆一下：`source`是用户自定义的`FlowableOnSubscribe`，`t`可以理解为用户自定义的`Subscriber`。这个函数中首先根据背压策略构造出不同的emitter，我们使用了`MissingEmitter`，它表示不使用背压，其`onNext(), onError(), onComplete()`先判断是否解订阅，然后直接调用了自定义`Subscriber`的`onNext(), onError(), onComplete()`方法。因此`t.onSubcribe(emmitter)`其实调用了自定义`Subscriber`的`OnSubscribe()`。`source.subscribe(emitter)`中会运行自定义`FlowableOnSubscribe#subscribe(emitter)`，参数`emitter`就是刚刚根据背压策略新建的`emitter`，在`emitter#onNext()`调用自定义`Subscriber#onNext()`。至此订阅过程分析完毕。
 
 ### 小结
+用传入的`FlowableOnSubscribe`构造出`FlowableCreate`，用`Subscriber`构造出`FlowableEmitter`，在`FlowableCreate#subscribe()`中调用`FlowableOnSubscribe.subscribe(emitter)`，实现了订阅过程。
+
+## 操作符的原理
+这里例举几个常用的操作符分析其原理。所有操作符都是大同小异的，主要看它的`subscribeActual()`。这里选择map, filter, concat, take, flatmap, just, error做介绍。
+### map
+**基本用法**
+```java
+Flowale.create(...)
+    .map(new Function<T, R>() {
+        @Override
+        public R apply(T s) throws Exception {
+            ...
+        }
+    })
+    .subscribe()
+```
+`map()`的语义是把原元素做一个变换，其源码如下。经过map操作后得到的是`FlowableMap`对象，再看它的`subscribeActual()`，这个方法会把原`Subscriber`包装成`MapSubscriber`。因此在这种情况下，`Emitter.actual`实际对象就是这个`MapSubscriber`，我们重点看它的`onNext()`方法。该方法中的`mapper`也就是我们重写的方法，传入的参数t是从上游的`Subscriber`传过来的，也就是从`Emitter`传入的，其实就是在`FlowableOnSubscribe#subsribe()`写的。t参数被`mapper`转换秤了U类型，最后在调用下游的`Subscriber#onNext`。
+``` java
+// Flowable
+public final <R> Flowable<R> map(Function<? super T, ? extends R> mapper) {
+    return RxJavaPlugins.onAssembly(new FlowableMap<T, R>(this, mapper));
+}
+
+// FlowableMap
+protected void subscribeActual(Subscriber<? super U> s) {
+    if (s instanceof ConditionalSubscriber) {
+        ...
+    } else {
+        source.subscribe(new MapSubscriber<T, U>(s, mapper));
+    }
+}
+
+// MapSubscriber
+static final class MapSubscriber<T, U> extends BasicFuseableSubscriber<T, U> {
+    final Function<? super T, ? extends U> mapper;
+
+    MapSubscriber(Subscriber<? super U> actual, Function<? super T, ? extends U> mapper) {
+        super(actual);
+        this.mapper = mapper;
+    }
+
+    @Override
+    public void onNext(T t) {
+        ...
+
+        U v;
+
+        try {
+            v = ObjectHelper.requireNonNull(mapper.apply(t), "The mapper function returned a null value.");
+        } catch (Throwable ex) {
+            fail(ex);
+            return;
+        }
+        actual.onNext(v);
+    }
+}
+```
+
+### flatmap
+```java
+Flowale.create(...)
+    .map(new Function<T, R>() {
+        @Override
+        public R apply(T s) throws Exception {
+            ...
+        }
+    })
+    .subscribe()
+```
+
+## 线程切换
+使用Rxjava很方便的地方就在于线程切换简单，只需要一句话就能完成切换
+``` java
+...
+.subscribeOn(Schedulers.io())
+.observeOn(AndroidSchedulers.mainThread())
+```
+### subscribeOn(Schedulers.io())
+``` java
+// Flowable
+public final Flowable<T> subscribeOn(@NonNull Scheduler scheduler, boolean requestOn) {
+    ObjectHelper.requireNonNull(scheduler, "scheduler is null");
+    return RxJavaPlugins.onAssembly(new FlowableSubscribeOn<T>(this, scheduler, requestOn));
+}
+
+// FlowableSubscribeOn.java
+public final class FlowableSubscribeOn<T> extends AbstractFlowableWithUpstream<T , T> {
+    public FlowableSubscribeOn(Flowable<T> source, Scheduler scheduler, boolean nonScheduledRequests) {
+        super(source);
+        this.scheduler = scheduler;
+        this.nonScheduledRequests = nonScheduledRequests;
+    }
+ public void subscribeActual(final Subscriber<? super T> s) {
+        Scheduler.Worker w = scheduler.createWorker();
+        final SubscribeOnSubscriber<T> sos = new SubscribeOnSubscriber<T>(s, w, source, nonScheduledRequests);
+        s.onSubscribe(sos);
+
+        w.schedule(sos);
+    }
+}
+```
+在经过`subscribeOn()`操作后，会转换成`FlowableSubscribeOn`，关注其`subscribeActual()`。这个方法与普通的操作符相差较大，普通操作符一般都是直接调用`source.subscribe(new xxSubscriber())`，但是此处立马调用了`s.onSubscibe()`，换句话说此处没切换线程，仅运行在创建`Flowable`的线程。然后调用`Scheduler.Worker#schedule(sos)`，这里的`worker`是从`Schedulers.io()`创建的。`SubscribeOnSubscriber`其实是一个`Runnable()`，就是在`run()`方法中完成了订阅的动作。因此这个`Subscriber`的`onNext(), onComplete()`等都是在新线程的，也就是说在`subscribeOn()`下一个操作符的`onNext`是运行在这个新线程的。
+
+``` java
+ static final class SubscribeOnSubscriber<T> extends AtomicReference<Thread>
+    implements FlowableSubscriber<T>, Subscription, Runnable {
+    @Override
+    public void run() {
+        lazySet(Thread.currentThread());
+        Publisher<T> src = source;
+        source = null;
+        src.subscribe(this);
+    }
+
+    @Override
+        public void onNext(T t) {
+            actual.onNext(t);
+        }
+}
+```
+
+
 

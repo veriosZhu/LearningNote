@@ -188,7 +188,11 @@ public synchronized static void completion(Postcard postcard) {
 1. 依旧交给_ARouter.inject()执行，内部再交给AutowiredService
 2. 该类又会调用事先compiler的类：类名$$Arouter$$Autowire，然后在inject()方法中手动设置成员属性，完成autowire工作
 
+## arouter-compiler
+compiler中有三种，AutowiredProcessor(处理@Autowire), InterceptorProcessor(处理@Interceptor), RouteProcessor(处理@Route)
 
+### AutowireProcessor
+略。。。
 
 
 
