@@ -264,6 +264,44 @@ public final class FlowableSubscribeOn<T> extends AbstractFlowableWithUpstream<T
         }
 }
 ```
+下面再来看`Scheduler.Worker`对象，当使用`Schedulers.io()`时，使用的是`IOScheduler`，因此这里的`Worker`是指`EventLoopWorder`。在它的`schedule()`中又会调用`NewthreadWorker#scheduleActual`，在该方法内部完成了线程切换。因此可以看到`subscribeOn()`其实是把它所有上游的`Flowable`都放到了指定的线程中。
+``` java
+public class IOScheduler {
+    public Worker createWorker() {
+        return new EventLoopWorker(pool.get());
+    }
+
+    static final class EventLoopWorker extends Scheduler.Worker {
+        public Disposable schedule(@NonNull Runnable action, long delayTime, @NonNull TimeUnit unit) {
+            ...
+            return threadWorker.scheduleActual(action, delayTime, unit, tasks);
+        }
+    }
+}
+
+public class NewthreadWorker {
+    public ScheduledRunnable scheduleActual(final Runnable run, long delayTime, @NonNull TimeUnit unit, @Nullable DisposableContainer parent) {
+        ...
+        ScheduledRunnable sr = new ScheduledRunnable(decoratedRun, parent);
+        ...
+        Future<?> f;
+        try {
+            if (delayTime <= 0) {
+                f = executor.submit((Callable<Object>)sr);
+            } else {
+                f = executor.schedule((Callable<Object>)sr, delayTime, unit);
+            }
+            sr.setFuture(f);
+        } catch (RejectedExecutionException ex) {
+            ...
+        }
+        return sr;
+    }
+}
+
+```
+
+### observeOn(AndroidSchedulers.mainThread())
 
 
 

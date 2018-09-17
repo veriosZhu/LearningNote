@@ -88,4 +88,10 @@ ContentProvider提供了一个外部访问本应用数据的接口。实现时�
 1. 通过ContextImpl#getContentResolver发起操作，这时获取的实际对象为ApplicationContentResolver
 2. 调用ApplicationContentResolver的query()等方法时，会调用ActivityThread#acquireProvider，它会拿到IContentProvider类型的对象，很明显这个对象也是用于跨进程调用的。因此最终query操作会交给这个IContentProvider做。
 3. 在ActivityThread#acquireProvider中，首先会在本地查找是否已经注册，如果没有则调用AMS#getContentProvider，然后再安装到本地。(这里查找其实就是在mProviderMap中根据authority和userId找，安装的本质也就是放入该map中)
-4. 
+4. 在AMS#getContentProvider中分两种情况，如果目标provider所在的应用已经启动那么会在AMS中的ProviderMap中找到，否则需要先启动目标应用(注，这个ProviderMap不是本地的mProviderMap，两者完全不同)
+5. 如果目标应用未启动，那么同样会从zygort fork一个新应用，然后调用新应用的ActivityThread#main()
+6. 之后与启动新app相同，在ActivityThread#handlebindapplication()中会调用installContentProvider()，该放在在new Application()之后，在Application#onCreate()之前
+7. 在ActivityThread#installContentProvider()中完成两件事：安装Provider和将Provider发布至AMS
+8. 安装Provier包括：1)通过反射创建provider 2)attach info，例如是否exported等，并调用onCreate 3)建立一条记录ProviderClientRecord并放入mProviderMap 4)返回holder
+9. 发布至AMS主要工作是存入AMS的ProviderMap
+10. 因此，最终的query()会调用IContentProvider#query()，这个IConentProvider的真实对象是ContentProvider.Transport，它的qery()会调用ContentProvider#query()，这也就是我们重写的方法了。
