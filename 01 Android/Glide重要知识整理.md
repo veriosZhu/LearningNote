@@ -46,7 +46,7 @@ class DrawableTypeRequest extend DrawableRequestBuilder {
 关键句1的`Request`对象其实是`GenericRequest`，它的构造函数可以说把我们所有自定义参数都包括其中，例如error图片、placeholder图片，transformation等。这里会先从一个Request池取，如果池为空才新建。
 关键句2最终会调用`Request.begin()`方法，在这个方法会做4件事：
 1. 判断`load(url)`中传入的参数是否为空，如果为空的话直接设置error占位符。
-2. 如果有override图片宽高那么开启线程加载图片（`onSizeReady`方法）
+2. 如果有设置图片宽高那么不需要测量，因此直接开启线程加载图片（`onSizeReady`方法）
 3. 如果没有设置，那么先测量ImageView的宽高然后再执行第2步
 4. 设置placeholder图片。
 
